@@ -30,7 +30,11 @@ jobs:
         run: |
           wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-14.0.0_r50/clang-r510928.tar.gz -O aosp-clang.tar.gz
           mkdir clang && tar -xf aosp-clang.tar.gz -C clang && rm -f aosp-clang.tar.gz
-
+      
+      - name: Integrate KernelSU Next (Legacy)
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+          
       - name: Enable ccache
         run: |
           echo "USE_CCACHE=1" >> $GITHUB_ENV
@@ -49,13 +53,23 @@ jobs:
         run: |
           export ARCH=arm64
           export LC_ALL=C
-          [ -d "out" ] && rm -rf out || mkdir -p out
+          rm -rf out
+          mkdir -p out
+
           make O=out ARCH=arm64 RMX2020_defconfig
+
+          ./scripts/config --file out/.config \
+            -e KSU \
+            -e KPROBES \
+            -e KPROBE_EVENTS
+
+          make O=out ARCH=arm64 olddefconfig
+
           PATH="${PWD}/clang/bin:${PATH}" \
-          make -j$(nproc --all) O=out \
-                CC="clang" \
-                LLVM=1 \
-                CONFIG_NO_ERROR_ON_MISMATCH=y
+          make -j"$(nproc)" O=out \
+            CC=clang \
+            LLVM=1 \
+            CONFIG_NO_ERROR_ON_MISMATCH=y
 
       - name: Package with AnyKernel3
         run: |
