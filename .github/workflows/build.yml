@@ -1,0 +1,86 @@
+name: Build Kernel
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest   # 4 vCPU / 16GB, free & unlimited on public repos
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev \
+            libncurses-dev libelf-dev ccache python3 zip git wget
+
+      - name: Cache AOSP Clang toolchain
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: clang
+          key: aosp-clang-r510928
+
+      - name: Download AOSP Clang (if not cached)
+        if: steps.cache-clang.outputs.cache-hit != 'true'
+        run: |
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-14.0.0_r50/clang-r510928.tar.gz -O aosp-clang.tar.gz
+          mkdir clang && tar -xf aosp-clang.tar.gz -C clang && rm -f aosp-clang.tar.gz
+
+      - name: Enable ccache
+        run: |
+          echo "USE_CCACHE=1" >> $GITHUB_ENV
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+
+      - name: Cache ccache directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ github.ref }}-
+            ccache-
+
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export LC_ALL=C
+          [ -d "out" ] && rm -rf out || mkdir -p out
+          make O=out ARCH=arm64 RMX2020_defconfig
+          PATH="${PWD}/clang/bin:${PATH}" \
+          make -j$(nproc --all) O=out \
+                CC="clang" \
+                LLVM=1 \
+                CONFIG_NO_ERROR_ON_MISMATCH=y
+
+      - name: Package with AnyKernel3
+        run: |
+          IMAGE="out/arch/arm64/boot/Image.gz-dtb"
+          if [[ ! -f "$IMAGE" ]]; then
+            echo "❌ Kernel image not found at $IMAGE"
+            exit 1
+          fi
+          git clone --depth=1 https://github.com/sarthakroy2002/AnyKernel3.git AnyKernel
+          cp "$IMAGE" AnyKernel
+          cd AnyKernel
+          zip -r9 Test-OSS-KERNEL-RMX2020-NEOLIT.zip .
+
+      - name: Upload flashable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-flashable-${{ github.sha }}
+          path: AnyKernel/Test-OSS-KERNEL-RMX2020-NEOLIT.zip
+          retention-days: 14
+
+      - name: Upload raw build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-raw-${{ github.sha }}
+          path: |
+            out/arch/arm64/boot/Image*
+            out/.config
+          retention-days: 14
