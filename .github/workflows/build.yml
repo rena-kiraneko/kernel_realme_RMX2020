@@ -37,7 +37,7 @@ jobs:
       
       - name: Patch KernelSU Next for Linux 4.14
         run: |
-        sed -i 's/struct timespec64 ts;/struct timespec ts;/g' drivers/kernelsu/sulog/event.c
+          sed -i 's/struct timespec64 ts;/struct timespec ts;/g' drivers/kernelsu/sulog/event.c
           
       - name: Enable ccache
         run: |
