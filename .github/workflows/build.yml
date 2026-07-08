@@ -34,6 +34,10 @@ jobs:
       - name: Integrate KernelSU Next (Legacy)
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+      
+      - name: Patch KernelSU Next for Linux 4.14
+        run: |
+        sed -i 's/struct timespec64 ts;/struct timespec ts;/g' drivers/kernelsu/sulog/event.c
           
       - name: Enable ccache
         run: |
