@@ -48,7 +48,10 @@ jobs:
           restore-keys: |
             ccache-${{ github.ref }}-
             ccache-
-
+       - name: Patch KernelSU for Linux 4.14
+          run: |
+          sed -i 's/struct timespec64 ts;/struct timespec ts;/g' drivers/kernelsu/sulog/event.c
+            
       - name: Build kernel
         run: |
           export ARCH=arm64
